@@ -1,110 +1,107 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:http/http.dart' as http;
-import 'package:diacritic/diacritic.dart';
 
 class DBHelper {
-  static Database? _database;
-  static const String _dbFileName = 'data.db';
-  static const String dbUrl = 'https://techodbquery.onrender.com/static/data.db';
-  static const String commentsFile = 'comments.txt';
+  static Database? _db;
 
   static Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDatabase();
-    return _database!;
+    if (_db != null) return _db!;
+    _db = await _initDb();
+    return _db!;
   }
 
-  static Future<Database> _initDatabase() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final path = join(dir.path, _dbFileName);
-    if (!await File(path).exists()) {
-      final data = await rootBundle.load('assets/$_dbFileName');
-      final bytes = data.buffer.asUint8List();
+  static Future<Database> _initDb() async {
+    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final path = join(documentsDirectory.path, 'data.db');
+
+    final exists = await File(path).exists();
+    if (!exists) {
+      final data = await rootBundle.load('assets/data.db');
+      final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
       await File(path).writeAsBytes(bytes, flush: true);
     }
-    return openDatabase(path);
-  }
 
-  static Future<void> updateDatabase() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final path = join(dir.path, _dbFileName);
-    final resp = await http.get(Uri.parse(dbUrl));
-    if (resp.statusCode == 200) {
-      await File(path).writeAsBytes(resp.bodyBytes, flush: true);
-      if (_database != null && _database!.isOpen) await _database!.close();
-      _database = await openDatabase(path);
-    } else {
-      throw Exception('HTTP ${resp.statusCode}');
-    }
+    return await openDatabase(path);
   }
 
   static Future<List<Map<String, dynamic>>> queryData(String field, String value) async {
     final db = await database;
-    return db.query(
-      'records',
-      where: '"\$field" = ?',
+    return await db.query(
+      'padron',
+      where: '$field = ?',
       whereArgs: [value],
     );
   }
 
-  // Partial, case-insensitive, accent-insensitive search by name
-  static Future<List<Map<String, dynamic>>> queryByName(String input) async {
+  static Future<List<Map<String, dynamic>>> queryByName(String name) async {
     final db = await database;
-    final rows = await db.query('records');
-    final normIn = removeDiacritics(input).toLowerCase();
-    return rows.where((r) {
-      final name = r['NOMBRE COMPLETO'] as String? ?? '';
-      final normName = removeDiacritics(name).toLowerCase();
-      return normName.contains(normIn);
-    }).toList();
-  }
-
-  // Save comments locally to a .txt
-  static Future<void> saveComment(Map<String, dynamic> record, String comment) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File(join(dir.path, commentsFile));
-    final row = jsonEncode({
-      'record': record,
-      'comment': comment,
-    });
-    await file.writeAsString(row + '\n', mode: FileMode.append, flush: true);
-  }
-
-  // Upload comments file to server via POST
-  static Future<void> uploadComments() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File(join(dir.path, commentsFile));
-    if (!await file.exists()) return;
-    final bytes = await file.readAsBytes();
-    final request = http.MultipartRequest('POST', Uri.parse('https://techodbquery.onrender.com/upload_comments'));
-    request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: commentsFile));
-    final resp = await request.send();
-    if (resp.statusCode != 200) throw Exception('Upload failed');
-  }
-  static Future<List<Map<String, dynamic>>> getUnsyncedComments() async {
-    final db = await DBHelper.database();
     return await db.query(
-      'comments',
-      where: 'synced = ?',
-      whereArgs: [0],
+      'padron',
+      where: 'LOWER(`NOMBRE COMPLETO`) LIKE ?',
+      whereArgs: ['%${name.toLowerCase()}%'],
     );
   }
-  static Future<void> updateComment(Map commentRow, String newComment) async {
-    final db = await DBHelper.database();
-    await db.update(
-      'comments',
+
+  static Future<void> updateDatabase() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final path = join(dir.path, 'data.db');
+
+    // Replace this part with actual download code if available
+    final data = await rootBundle.load('assets/data.db');
+    final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    await File(path).writeAsBytes(bytes, flush: true);
+  }
+
+  static Future<void> saveComment(Map<String, dynamic> record, String comment) async {
+    final db = await database;
+    await db.insert(
+      'comentarios',
       {
-        'comentario': newComment,
-        'synced': 0, // stay unsynced until manually pushed
+        'cedula': record['CEDULA'],
+        'nombre': record['NOMBRE COMPLETO'],
+        'comunidad': record['COMUNIDAD'],
+        'comentario': comment,
+        'fecha': DateTime.now().toIso8601String(),
+        'sincronizado': 0,
       },
-      where: 'id = ?',
-      whereArgs: [commentRow['id']],
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  static Future<List<Map<String, dynamic>>> getUnsyncedComments() async {
+    final db = await database;
+    return await db.query(
+      'comentarios',
+      where: 'sincronizado = 0',
+    );
+  }
+
+  static Future<void> updateComment(int id, String comentario) async {
+    final db = await database;
+    await db.update(
+      'comentarios',
+      {'comentario': comentario},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  static Future<void> uploadComments() async {
+    final db = await database;
+    await db.update(
+      'comentarios',
+      {'sincronizado': 1},
+      where: 'sincronizado = 0',
+    );
+  }
+  static Future<bool> checkUnsyncedComments() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM comentarios WHERE sincronizado = 0');
+    final count = Sqflite.firstIntValue(result);
+    return count != null && count > 0;
   }
 
 }
