@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'db_helper.dart';
+import 'splash_screen.dart'; // ⬅️ Import this
 
 void main() {
   runApp(MyApp());
@@ -11,7 +12,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Consulta de Registros',
       theme: ThemeData(primarySwatch: Colors.indigo),
-      home: QueryPage(),
+      home: SplashScreen(nextScreen: QueryPage()), // 👈 Your original screen QueryPage(),
       debugShowCheckedModeBanner: false,
     );
   }
