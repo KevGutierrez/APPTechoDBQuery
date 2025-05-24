@@ -2,178 +2,361 @@ import 'package:flutter/material.dart';
 import 'db_helper.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Consulta de Registros',
       theme: ThemeData(primarySwatch: Colors.indigo),
-      home: const QueryPage(),
+      home: QueryPage(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
 class QueryPage extends StatefulWidget {
-  const QueryPage({super.key});
-
   @override
-  State<QueryPage> createState() => _QueryPageState();
+  _QueryPageState createState() => _QueryPageState();
 }
 
 class _QueryPageState extends State<QueryPage> {
   final _controller = TextEditingController();
-  String _selectedField = 'CEDULA';
+  String _selectedField = "CEDULA";
   List<Map<String, dynamic>> _results = [];
+  Map<String, dynamic>? _selectedRecord;
   bool _hasQueried = false;
   bool _isSyncing = false;
-  String? _estado;
+  bool _showingMultipleResults = false;
   bool _hasUnsyncedComments = false;
+  String? _estado;
 
   @override
   void initState() {
     super.initState();
-    DBHelper.checkUnsyncedComments().then((hasUnsynced) {
-      setState(() => _hasUnsyncedComments = hasUnsynced);
+    _checkUnsyncedComments();
+  }
+
+  Future<void> _checkUnsyncedComments() async {
+    bool hasUnsynced = await DBHelper.hasUnsyncedComments();
+    setState(() {
+      _hasUnsyncedComments = hasUnsynced;
     });
   }
 
   Future<void> _search() async {
     final input = _controller.text.trim();
     if (input.isEmpty) return;
-    setState(() => _hasQueried = true);
 
-    if (_selectedField == 'NOMBRE') {
-      _results = await DBHelper.queryByName(input);
+    List<Map<String, dynamic>> results;
+
+    if (_selectedField == "NOMBRE COMPLETO") {
+      // Use name search for partial matching
+      results = await DBHelper.queryByName(input);
     } else {
-      _results = await DBHelper.queryData(_selectedField, input);
+      // Use exact search for CEDULA and CONTACTO 1
+      final field = _selectedField == "CONTACTO 1" ? '"CONTACTO 1"' : _selectedField;
+      results = await DBHelper.queryData(field, input);
     }
 
-    if (_results.length == 1) {
-      _estado = _results.first['ESTADO'];
-    }
+    setState(() {
+      _results = results;
+      _hasQueried = true;
+      _showingMultipleResults = results.length > 1;
+      
+      if (results.length == 1) {
+        // Single result - show directly
+        _selectedRecord = results[0];
+        _estado = results[0]['ESTADO'];
+      } else {
+        // Multiple or no results
+        _selectedRecord = null;
+        _estado = null;
+      }
+    });
+  }
 
-    setState(() {});
+  void _selectRecord(Map<String, dynamic> record) {
+    setState(() {
+      _selectedRecord = record;
+      _estado = record['ESTADO'];
+      _showingMultipleResults = false;
+    });
+  }
+
+  void _backToResults() {
+    setState(() {
+      _selectedRecord = null;
+      _estado = null;
+      _showingMultipleResults = _results.length > 1;
+    });
   }
 
   Future<void> _syncDatabase() async {
     setState(() => _isSyncing = true);
-    await DBHelper.updateDatabase();
-    await DBHelper.uploadComments();
-    final hasUnsynced = await DBHelper.checkUnsyncedComments();
-    setState(() {
-      _hasUnsyncedComments = hasUnsynced;
-      _isSyncing = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Base de datos sincronizada.'),
-    ));
+    try {
+      // Sync database
+      await DBHelper.updateDatabase();
+      
+      // Sync comments if there are any
+      if (_hasUnsyncedComments) {
+        await DBHelper.syncComments();
+        await _checkUnsyncedComments(); // Refresh the unsynced status
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Base de datos actualizada correctamente")),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error al actualizar la base de datos")),
+      );
+    }
+    setState(() => _isSyncing = false);
   }
 
-  Future<void> _showUnsyncedComments() async {
-    final comments = await DBHelper.getUnsyncedComments();
+  Future<void> _showAddCommentDialog() async {
+    if (_selectedRecord == null) return;
+
+    TextEditingController commentController = TextEditingController();
+    
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Comentarios sin sincronizar'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: comments.map((comment) {
-              final ctrl = TextEditingController(text: comment['comentario']);
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Expanded(flex: 3, child: Text(comment['nombre'] ?? '')),
-                    Expanded(flex: 2, child: Text(comment['comunidad'] ?? '')),
-                    Expanded(
-                      flex: 5,
-                      child: TextField(
-                        controller: ctrl,
-                        onSubmitted: (newValue) => DBHelper.updateComment(comment['id'], newValue),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar'))],
-      ),
-    );
-  }
-
-  void _addComment(Map<String, dynamic> record) async {
-    final comment = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final ctrl = TextEditingController();
+      builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Añadir Comentario'),
+          title: Text("Añadir Comentario"),
           content: TextField(
-            controller: ctrl,
-            decoration: const InputDecoration(hintText: 'Ingrese comentario'),
+            controller: commentController,
+            decoration: InputDecoration(
+              hintText: "Escribe tu comentario aquí...",
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 4,
+            minLines: 2,
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-            ElevatedButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Guardar')),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                String comment = commentController.text.trim();
+                if (comment.isNotEmpty) {
+                  try {
+                    await DBHelper.saveComment(_selectedRecord!, comment);
+                    Navigator.of(context).pop();
+                    
+                    // Show success message
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Comentario añadido, recuerda sincronizar")),
+                    );
+                    
+                    // Update unsynced comments status
+                    await _checkUnsyncedComments();
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Error al guardar comentario")),
+                    );
+                  }
+                }
+              },
+              child: Text("Guardar"),
+            ),
           ],
         );
       },
     );
-    if (comment != null && comment.isNotEmpty) {
-      await DBHelper.saveComment(record, comment);
-      setState(() => _hasUnsyncedComments = true);
+  }
+
+  void _showUnsyncedWarning() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.orange),
+              SizedBox(width: 8),
+              Text("Comentarios sin sincronizar"),
+            ],
+          ),
+          content: Text("Hay comentarios sin sincronizar. Conéctate a internet y toca el ícono de Sincronizar"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text("Entendido"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Color _getEstadoColor(String estado) {
+    switch (estado.toLowerCase()) {
+      case "encuestado":
+        return Colors.blue.shade100;
+      case "caracterizado":
+        return Colors.purple.shade100;
+      case "asignado":
+        return Colors.green.shade100;
+      default:
+        return Colors.grey.shade200;
     }
   }
 
-  Widget _buildResultsView() {
-    if (!_hasQueried) return const SizedBox();
-    if (_results.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(12.0),
-        child: Text('No se encontraron resultados.'),
-      );
+  Color _getEstadoTextColor(String estado) {
+    switch (estado.toLowerCase()) {
+      case "encuestado":
+        return Colors.blue.shade900;
+      case "caracterizado":
+        return Colors.purple.shade900;
+      case "asignado":
+        return Colors.green.shade900;
+      default:
+        return Colors.black;
     }
-    if (_selectedField == 'NOMBRE' && _results.length > 1) {
-      return ListView.builder(
-        shrinkWrap: true,
-        itemCount: _results.length,
-        itemBuilder: (_, i) {
-          final r = _results[i];
-          return ListTile(
-            title: Text(r['NOMBRE COMPLETO'] ?? ''),
-            subtitle: Text('${r['COMUNIDAD']} | ${r['CEDULA']}'),
-            onTap: () {
-              setState(() {
-                _results = [r];
-                _estado = r['ESTADO'];
-              });
-            },
-          );
-        },
-      );
-    }
-    final record = _results.first;
+  }
+
+  Widget _buildMultipleResultsList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Nombre: ${record['NOMBRE COMPLETO']}'),
-        Text('Comunidad: ${record['COMUNIDAD']}'),
-        Text('Cédula: ${record['CEDULA']}'),
-        if (_estado != null) Text('Estado: $_estado'),
-        ElevatedButton(
-          onPressed: () => _addComment(record),
-          child: const Text('Añadir comentario'),
+        Text(
+          "Se encontraron ${_results.length} resultados:",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
+        SizedBox(height: 12),
+        ...List.generate(_results.length, (index) {
+          final record = _results[index];
+          return Card(
+            margin: EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              title: Text(
+                record['NOMBRE COMPLETO']?.toString() ?? 'Sin nombre',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Comunidad: ${record['COMUNIDAD']?.toString() ?? 'N/A'}'),
+                  Text('Cédula: ${record['CEDULA']?.toString() ?? 'N/A'}'),
+                ],
+              ),
+              trailing: Icon(Icons.arrow_forward_ios),
+              onTap: () => _selectRecord(record),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildResultTable() {
+    if (_results.isEmpty && _hasQueried) {
+      return Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Text("No se encontraron resultados."),
+      );
+    }
+
+    if (_results.isEmpty) return SizedBox();
+
+    if (_showingMultipleResults) {
+      return _buildMultipleResultsList();
+    }
+
+    if (_selectedRecord == null) return SizedBox();
+
+    final data = _selectedRecord!;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Back button when viewing a selected record from multiple results
+        if (_results.length > 1)
+          Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: ElevatedButton.icon(
+              onPressed: _backToResults,
+              icon: Icon(Icons.arrow_back),
+              label: Text("Volver a resultados"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.grey.shade300,
+                foregroundColor: Colors.black87,
+              ),
+            ),
+          ),
+        
+        // Estado display
+        if (_estado != null)
+          Container(
+            padding: EdgeInsets.all(16),
+            margin: EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: _getEstadoColor(_estado!),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              "ESTADO: $_estado",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: _getEstadoTextColor(_estado!),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        
+        // Add comment button
+        Container(
+          margin: EdgeInsets.only(bottom: 12),
+          child: ElevatedButton.icon(
+            onPressed: _showAddCommentDialog,
+            icon: Icon(Icons.comment_outlined),
+            label: Text("Añadir Comentario"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade600,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+        
+        // Record details
+        ...data.entries.map((entry) {
+          if (entry.key == "ESTADO") return SizedBox.shrink();
+          return Container(
+            margin: EdgeInsets.only(bottom: 8),
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    "${entry.key}:",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: Text("${entry.value ?? '-'}",
+                      style: TextStyle(color: Colors.black87)),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
       ],
     );
   }
@@ -182,18 +365,23 @@ class _QueryPageState extends State<QueryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Consulta de Registros'),
+        title: Text("Consulta de Registros"),
         actions: [
+          // Warning icon for unsynced comments
           if (_hasUnsyncedComments)
             IconButton(
-              icon: const Icon(Icons.comment),
-              tooltip: 'Ver comentarios sin sincronizar',
-              onPressed: _showUnsyncedComments,
+              icon: Icon(Icons.warning, color: Colors.orange),
+              tooltip: "Comentarios sin sincronizar",
+              onPressed: _showUnsyncedWarning,
             ),
+          // Sync button
           IconButton(
             icon: _isSyncing
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Icon(Icons.sync),
+                ? CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation(Colors.white),
+                  )
+                : Icon(Icons.sync),
+            tooltip: "Actualizar Base de Datos",
             onPressed: _isSyncing ? null : _syncDatabase,
           ),
         ],
@@ -203,33 +391,53 @@ class _QueryPageState extends State<QueryPage> {
           padding: const EdgeInsets.all(16),
           child: ListView(
             children: [
-              const SizedBox(height: 16),
+              Center(
+                child: Image.asset(
+                  'assets/logo.png',
+                  height: 100,
+                ),
+              ),
+              SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: _selectedField,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Buscar por',
                   border: OutlineInputBorder(),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'CEDULA', child: Text('CEDULA')),
-                  DropdownMenuItem(value: 'CONTACTO 1', child: Text('CONTACTO (Celular)')),
-                  DropdownMenuItem(value: 'NOMBRE', child: Text('Nombre')),
+                items: [
+                  DropdownMenuItem(value: "CEDULA", child: Text("CÉDULA")),
+                  DropdownMenuItem(
+                      value: "CONTACTO 1", child: Text("CONTACTO (Celular)")),
+                  DropdownMenuItem(
+                      value: "NOMBRE COMPLETO", child: Text("NOMBRE")),
                 ],
-                onChanged: (v) => setState(() => _selectedField = v!),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedField = value!;
+                  });
+                },
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextField(
                 controller: _controller,
-                decoration: const InputDecoration(
-                  labelText: 'Ingrese valor',
+                decoration: InputDecoration(
+                  labelText: _selectedField == "NOMBRE COMPLETO" 
+                      ? 'Ingrese nombre (búsqueda parcial)'
+                      : 'Ingrese valor',
                   border: OutlineInputBorder(),
                 ),
+                keyboardType: TextInputType.text,
                 onSubmitted: (_) => _search(),
               ),
-              const SizedBox(height: 12),
-              ElevatedButton(onPressed: _search, child: const Text('Buscar')),
-              const SizedBox(height: 24),
-              _buildResultsView(),
+              SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _search,
+                child: Text('Buscar'),
+                style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 14)),
+              ),
+              SizedBox(height: 24),
+              _buildResultTable(),
             ],
           ),
         ),
