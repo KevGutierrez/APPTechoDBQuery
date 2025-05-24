@@ -46,6 +46,7 @@ class DBHelper {
       String path = join(documentsDirectory.path, _dbFileName);
       
       final response = await http.get(Uri.parse(dbUrl));
+      
       if (response.statusCode == 200) {
         // Write the downloaded database to the app directory
         final file = File(path);
@@ -59,6 +60,7 @@ class DBHelper {
         
         // Reopen the database
         _database = await openDatabase(path);
+        
         print("✅ Database updated successfully");
       } else {
         print("❌ HTTP Error: ${response.statusCode}");
@@ -73,8 +75,10 @@ class DBHelper {
   // Query DB by CEDULA or CONTACTO 1 (exact match)
   static Future<List<Map<String, dynamic>>> queryData(String field, String value) async {
     final db = await database;
+    
     // Remove any existing quotes from field
     String cleanField = field.replaceAll('"', '');
+    
     return await db.query(
       'records',
       where: '"$cleanField" = ?',
@@ -94,7 +98,6 @@ class DBHelper {
     
     // Filter results manually for accent-insensitive search
     List<Map<String, dynamic>> filteredResults = [];
-    
     for (var record in results) {
       String? nombreCompleto = record['NOMBRE COMPLETO']?.toString();
       if (nombreCompleto != null) {
@@ -143,7 +146,10 @@ class DBHelper {
       String nombre = record['NOMBRE COMPLETO']?.toString() ?? '';
       String comunidad = record['COMUNIDAD']?.toString() ?? '';
       
-      String line = "$cedula|$nombre|$comunidad|$comment|$contentTimestamp\n";
+      // Replace line breaks with spaces to ensure single line storage
+      String cleanComment = comment.replaceAll('\n', ' ').replaceAll('\r', ' ');
+      
+      String line = "$cedula|$nombre|$comunidad|$cleanComment|$contentTimestamp\n";
       
       // Write to file
       final file = File(filePath);
@@ -159,6 +165,105 @@ class DBHelper {
     }
   }
 
+  // Get all unsynced comments for display
+  static Future<List<Map<String, dynamic>>> getUnsyncedComments() async {
+    try {
+      Directory documentsDirectory = await getApplicationDocumentsDirectory();
+      
+      // Find all comment files
+      List<FileSystemEntity> files = documentsDirectory.listSync()
+          .where((file) => file.path.contains('comments_') && file.path.endsWith('.txt'))
+          .toList();
+
+      List<Map<String, dynamic>> comments = [];
+
+      for (FileSystemEntity fileEntity in files) {
+        File file = File(fileEntity.path);
+        String content = await file.readAsString();
+        
+        // Parse the content: CEDULA|NOMBRE|COMUNIDAD|COMMENT|TIMESTAMP
+        List<String> parts = content.trim().split('|');
+        if (parts.length >= 5) {
+          comments.add({
+            'filename': basename(file.path),
+            'cedula': parts[0],
+            'nombre': parts[1],
+            'comunidad': parts[2],
+            'comment': parts[3],
+            'timestamp': parts[4],
+          });
+        }
+      }
+
+      // Sort by timestamp (newest first)
+      comments.sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
+
+      return comments;
+    } catch (e) {
+      print("❌ Error getting unsynced comments: $e");
+      return [];
+    }
+  }
+
+  // Update an existing comment
+  static Future<void> updateComment(String filename, String newComment) async {
+    try {
+      Directory documentsDirectory = await getApplicationDocumentsDirectory();
+      String filePath = join(documentsDirectory.path, filename);
+      
+      File file = File(filePath);
+      if (!await file.exists()) {
+        throw Exception("Comment file not found");
+      }
+
+      String content = await file.readAsString();
+      List<String> parts = content.trim().split('|');
+      
+      if (parts.length >= 5) {
+        // Replace line breaks with spaces to ensure single line storage
+        String cleanComment = newComment.replaceAll('\n', ' ').replaceAll('\r', ' ');
+        
+        // Update the comment part and timestamp
+        parts[3] = cleanComment;
+        parts[4] = DateTime.now().toIso8601String();
+        
+        String updatedContent = parts.join('|') + '\n';
+        await file.writeAsString(updatedContent);
+        
+        print("✅ Comment updated: $filename");
+      }
+    } catch (e) {
+      print("❌ Error updating comment: $e");
+      throw Exception("Error updating comment: $e");
+    }
+  }
+
+  // Delete a comment file
+  static Future<void> deleteComment(String filename) async {
+    try {
+      Directory documentsDirectory = await getApplicationDocumentsDirectory();
+      String filePath = join(documentsDirectory.path, filename);
+      
+      File file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+        print("✅ Comment deleted: $filename");
+        
+        // Check if there are any remaining comment files
+        List<FileSystemEntity> remainingFiles = documentsDirectory.listSync()
+            .where((file) => file.path.contains('comments_') && file.path.endsWith('.txt'))
+            .toList();
+        
+        if (remainingFiles.isEmpty) {
+          await _setHasUnsyncedComments(false);
+        }
+      }
+    } catch (e) {
+      print("❌ Error deleting comment: $e");
+      throw Exception("Error deleting comment: $e");
+    }
+  }
+
   // Upload all comment files to server
   static Future<void> syncComments() async {
     try {
@@ -168,14 +273,13 @@ class DBHelper {
       List<FileSystemEntity> files = documentsDirectory.listSync()
           .where((file) => file.path.contains('comments_') && file.path.endsWith('.txt'))
           .toList();
-      
+
       if (files.isEmpty) {
         print("ℹ️ No comment files to sync");
         return;
       }
-      
+
       int uploadedCount = 0;
-      
       for (FileSystemEntity fileEntity in files) {
         File file = File(fileEntity.path);
         
@@ -195,13 +299,12 @@ class DBHelper {
           print("❌ Failed to upload: ${file.path}, Status: ${response.statusCode}");
         }
       }
-      
+
       if (uploadedCount > 0) {
         // Mark that comments are synced
         await _setHasUnsyncedComments(false);
         print("✅ Successfully synced $uploadedCount comment files");
       }
-      
     } catch (e) {
       print("❌ Error syncing comments: $e");
       throw Exception("Error syncing comments: $e");
