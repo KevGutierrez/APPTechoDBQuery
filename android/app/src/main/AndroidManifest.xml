@@ -2,7 +2,7 @@
 <!-- ✅ Add this line right below the <manifest> tag -->
     <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="Consulta de Registros TECHO"
+        android:label="Consulta de Registros"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
