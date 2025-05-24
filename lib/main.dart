@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'db_helper.dart';
 import 'splash_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(MyApp());
@@ -47,12 +48,17 @@ class _QueryPageState extends State<QueryPage> {
   bool _isSyncing = false;
   bool _showingMultipleResults = false;
   bool _hasUnsyncedComments = false;
+  DateTime? _lastSyncTime;
   String? _estado;
+  String? _selectedComunidad;
+  String? _selectedEstado;
+  bool _showFilters = false;
 
   @override
   void initState() {
     super.initState();
     _checkUnsyncedComments();
+    _loadLastSyncTime();
   }
 
   Future<void> _checkUnsyncedComments() async {
@@ -60,6 +66,32 @@ class _QueryPageState extends State<QueryPage> {
     setState(() {
       _hasUnsyncedComments = hasUnsynced;
     });
+  }
+
+  Future<void> _loadLastSyncTime() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    int? timestamp = prefs.getInt('last_sync_timestamp');
+    if (timestamp != null) {
+      setState(() {
+        _lastSyncTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+      });
+    }
+  }
+
+  String _formatSyncTime(DateTime syncTime) {
+    DateTime now = DateTime.now();
+    Duration difference = now.difference(syncTime);
+    
+    if (difference.inDays == 0) {
+      return "Hoy ${syncTime.hour.toString().padLeft(2, '0')}:${syncTime.minute.toString().padLeft(2, '0')}";
+    } else if (difference.inDays == 1) {
+      return "Ayer ${syncTime.hour.toString().padLeft(2, '0')}:${syncTime.minute.toString().padLeft(2, '0')}";
+    } else if (difference.inDays < 7) {
+      List<String> days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+      return "${days[syncTime.weekday - 1]} ${syncTime.hour.toString().padLeft(2, '0')}:${syncTime.minute.toString().padLeft(2, '0')}";
+    } else {
+      return "${syncTime.day}/${syncTime.month} ${syncTime.hour.toString().padLeft(2, '0')}:${syncTime.minute.toString().padLeft(2, '0')}";
+    }
   }
 
   Future<void> _search() async {
@@ -72,6 +104,19 @@ class _QueryPageState extends State<QueryPage> {
     } else {
       final field = _selectedField == "CONTACTO 1" ? '"CONTACTO 1"' : _selectedField;
       results = await DBHelper.queryData(field, input);
+    }
+
+    // Apply filters
+    if (_selectedComunidad != null) {
+      results = results.where((record) => 
+        record['COMUNIDAD']?.toString().toLowerCase() == _selectedComunidad!.toLowerCase()
+      ).toList();
+    }
+    
+    if (_selectedEstado != null) {
+      results = results.where((record) => 
+        record['ESTADO']?.toString().toLowerCase() == _selectedEstado!.toLowerCase()
+      ).toList();
     }
 
     setState(() {
@@ -129,6 +174,9 @@ class _QueryPageState extends State<QueryPage> {
         ),
       );
     }
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('last_sync_timestamp', DateTime.now().millisecondsSinceEpoch);
+    await _loadLastSyncTime();
     setState(() => _isSyncing = false);
   }
 
@@ -425,6 +473,109 @@ class _QueryPageState extends State<QueryPage> {
     }
   }
 
+  Widget _buildFilterSection() {
+    return Card(
+      margin: EdgeInsets.only(bottom: 16),
+      child: Column(
+        children: [
+          ListTile(
+            title: Text(
+              "Filtros",
+              style: TextStyle(fontFamily: 'Fredoka', fontWeight: FontWeight.w600),
+            ),
+            trailing: Icon(_showFilters ? Icons.expand_less : Icons.expand_more),
+            onTap: () {
+              setState(() {
+                _showFilters = !_showFilters;
+              });
+            },
+          ),
+          if (_showFilters) ...[
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: _selectedComunidad,
+                    decoration: InputDecoration(
+                      labelText: 'Filtrar por Comunidad',
+                      labelStyle: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
+                      border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD))),
+                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD), width: 2)),
+                    ),
+                    items: [
+                      DropdownMenuItem(value: null, child: Text("Todas", style: TextStyle(fontFamily: 'Montserrat'))),
+                      DropdownMenuItem(value: "La Nueva Jerusalén", child: Text("La Nueva Jerusalén", style: TextStyle(fontFamily: 'Montserrat'))),
+                      DropdownMenuItem(value: "La Honda", child: Text("La Honda", style: TextStyle(fontFamily: 'Montserrat'))),
+                      DropdownMenuItem(value: "Granizal", child: Text("Granizal", style: TextStyle(fontFamily: 'Montserrat'))),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedComunidad = value;
+                      });
+                    },
+                  ),
+                  SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _selectedEstado,
+                    decoration: InputDecoration(
+                      labelText: 'Filtrar por Estado',
+                      labelStyle: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
+                      border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD))),
+                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD), width: 2)),
+                    ),
+                    items: [
+                      DropdownMenuItem(value: null, child: Text("Todos", style: TextStyle(fontFamily: 'Montserrat'))),
+                      DropdownMenuItem(value: "caracterizado", child: Text("Caracterizado", style: TextStyle(fontFamily: 'Montserrat'))),
+                      DropdownMenuItem(value: "encuestado", child: Text("Encuestado", style: TextStyle(fontFamily: 'Montserrat'))),
+                      DropdownMenuItem(value: "preasignado", child: Text("Preasignado", style: TextStyle(fontFamily: 'Montserrat'))),
+                      DropdownMenuItem(value: "inactivo", child: Text("Inactivo", style: TextStyle(fontFamily: 'Montserrat'))),
+                      DropdownMenuItem(value: "asignado", child: Text("Asignado", style: TextStyle(fontFamily: 'Montserrat'))),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedEstado = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHighlightedText(String fullText, String searchTerm, TextStyle style) {
+    if (searchTerm.isEmpty) {
+      return Text(fullText, style: style);
+    }
+    
+    String normalizedFull = DBHelper.normalizeString(fullText);
+    String normalizedSearch = DBHelper.normalizeString(searchTerm);
+
+    int index = normalizedFull.indexOf(normalizedSearch);
+    if (index == -1) {
+      return Text(fullText, style: style);
+    }
+    
+    return RichText(
+      text: TextSpan(
+        style: style,
+        children: [
+          if (index > 0) TextSpan(text: fullText.substring(0, index)),
+          TextSpan(
+            text: fullText.substring(index, index + searchTerm.length),
+            style: style.copyWith(fontWeight: FontWeight.bold),
+          ),
+          if (index + searchTerm.length < fullText.length)
+            TextSpan(text: fullText.substring(index + searchTerm.length)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMultipleResultsList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -445,9 +596,10 @@ class _QueryPageState extends State<QueryPage> {
             margin: EdgeInsets.only(bottom: 8),
             elevation: 2,
             child: ListTile(
-              title: Text(
+              title: _buildHighlightedText(
                 record['NOMBRE COMPLETO']?.toString() ?? 'Sin nombre',
-                style: TextStyle(
+                _selectedField == "NOMBRE COMPLETO" ? _controller.text.trim() : "",
+                TextStyle(
                   fontWeight: FontWeight.bold,
                   fontFamily: 'Fredoka',
                   color: Color(0xFF0092DD),
@@ -600,9 +752,19 @@ class _QueryPageState extends State<QueryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          "Consulta de Registros",
-          style: TextStyle(fontFamily: 'Fredoka', fontWeight: FontWeight.w600),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Consulta de Registros",
+              style: TextStyle(fontFamily: 'Fredoka', fontWeight: FontWeight.w600),
+            ),
+            if (_lastSyncTime != null)
+              Text(
+                "Última sync: ${_formatSyncTime(_lastSyncTime!)}",
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w300),
+              ),
+          ],
         ),
         backgroundColor: Color(0xFF0092DD),
         foregroundColor: Colors.white,
@@ -647,6 +809,7 @@ class _QueryPageState extends State<QueryPage> {
                 ),
               ),
               SizedBox(height: 16),
+              _buildFilterSection(),
               DropdownButtonFormField<String>(
                 value: _selectedField,
                 decoration: InputDecoration(

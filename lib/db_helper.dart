@@ -91,7 +91,7 @@ class DBHelper {
     final db = await database;
     
     // Normalize the search term (remove accents, convert to lowercase)
-    String normalizedSearch = _normalizeString(searchTerm);
+    String normalizedSearch = normalizeString(searchTerm);
     
     // Get all records with NOMBRE COMPLETO
     final results = await db.query('records');
@@ -101,7 +101,7 @@ class DBHelper {
     for (var record in results) {
       String? nombreCompleto = record['NOMBRE COMPLETO']?.toString();
       if (nombreCompleto != null) {
-        String normalizedNombre = _normalizeString(nombreCompleto);
+        String normalizedNombre = normalizeString(nombreCompleto);
         if (normalizedNombre.contains(normalizedSearch)) {
           filteredResults.add(record);
         }
@@ -112,7 +112,7 @@ class DBHelper {
   }
 
   // Helper function to normalize strings (remove accents, convert to lowercase)
-  static String _normalizeString(String input) {
+  static String normalizeString(String input) {
     String normalized = input.toLowerCase();
     
     // Remove accents
