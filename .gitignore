@@ -33,6 +33,8 @@ migrate_working_dir/
 .pub/
 /build/
 
+build/ConsultadeRegistrosTECHO_APPVersions
+
 # Symbolication related
 app.*.symbols
 
