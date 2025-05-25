@@ -1069,7 +1069,7 @@ class _QueryPageState extends State<QueryPage> {
                   });
                 },
               ),
-              SizedBox(height: 16),
+              SizedBox(height: 20),
               
               // Replace the existing TextField with this:
               Stack(
@@ -1084,12 +1084,15 @@ class _QueryPageState extends State<QueryPage> {
                           ? 'Ingrese número de celular'
                           : 'Ingrese nombre (búsqueda parcial)',
                       labelStyle: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
-                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                      contentPadding: EdgeInsets.fromLTRB(12, 20, 12, 12), // Increase top padding
                       border: OutlineInputBorder(
                         borderSide: BorderSide(color: Color(0xFF0092DD)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: Color(0xFF0092DD), width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder( // Add this
+                        borderSide: BorderSide(color: Color(0xFF0092DD)),
                       ),
                       suffixIcon: _controller.text.isNotEmpty
                           ? IconButton(
