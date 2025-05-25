@@ -54,6 +54,7 @@ class _QueryPageState extends State<QueryPage> {
   String? _selectedEstado;
   bool _showFilters = false;
 
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +65,9 @@ class _QueryPageState extends State<QueryPage> {
   bool _areFiltersActive() {
     return (_selectedComunidad != null && _selectedComunidad != "Todas") ||
           (_selectedEstado != null && _selectedEstado != "Todos");
+  }
+  bool _hasActiveFilters() {
+    return _selectedComunidad != null || _selectedEstado != null;
   }
 
 
@@ -483,21 +487,6 @@ class _QueryPageState extends State<QueryPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: IconButton(
-              icon: Icon(Icons.filter_list),
-              tooltip: 'Filtros',
-              onPressed: () {
-                setState(() {
-                  _showFilters = !_showFilters;
-                });
-              },
-            ),
-          ),
-        ),
         AnimatedSwitcher(
           duration: Duration(milliseconds: 300),
           transitionBuilder: (Widget child, Animation<double> animation) {
@@ -928,8 +917,25 @@ class _QueryPageState extends State<QueryPage> {
               ),
               SizedBox(height: 12),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  // Buscar button takes most of the space
+                  Expanded(
+                    flex: 9,
+                    child: ElevatedButton(
+                      onPressed: _search,
+                      child: Text(
+                        'Buscar',
+                        style: TextStyle(fontFamily: 'Fredoka', fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF0092DD),
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 8), // spacing between button and icon
+                  // Filter icon on the right
                   IconButton(
                     icon: Icon(
                       _showFilters ? Icons.filter_alt : Icons.filter_alt_outlined,
@@ -942,21 +948,9 @@ class _QueryPageState extends State<QueryPage> {
                       });
                     },
                   ),
-                  SizedBox(width: 4), // small space between icon and button
-                  ElevatedButton(
-                    onPressed: _search,
-                    child: Text(
-                      'Buscar',
-                      style: TextStyle(fontFamily: 'Fredoka', fontWeight: FontWeight.w600),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF0092DD),
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
                 ],
               ),
+
               SizedBox(height: 24),
               _buildResultTable(),
             ],
