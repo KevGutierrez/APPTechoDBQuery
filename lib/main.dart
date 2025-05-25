@@ -61,6 +61,12 @@ class _QueryPageState extends State<QueryPage> {
     _loadLastSyncTime();
   }
 
+  bool _areFiltersActive() {
+    return (_selectedComunidad != null && _selectedComunidad != "Todas") ||
+          (_selectedEstado != null && _selectedEstado != "Todos");
+  }
+
+
   Future<void> _checkUnsyncedComments() async {
     bool hasUnsynced = await DBHelper.hasUnsyncedComments();
     setState(() {
@@ -474,84 +480,132 @@ class _QueryPageState extends State<QueryPage> {
   }
 
   Widget _buildFilterSection() {
-    return Card(
-      margin: EdgeInsets.only(bottom: 16),
-      child: Column(
-        children: [
-          ListTile(
-            title: Text(
-              "Filtros",
-              style: TextStyle(fontFamily: 'Fredoka', fontWeight: FontWeight.w600),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: IconButton(
+              icon: Icon(Icons.filter_list),
+              tooltip: 'Filtros',
+              onPressed: () {
+                setState(() {
+                  _showFilters = !_showFilters;
+                });
+              },
             ),
-            trailing: Icon(_showFilters ? Icons.expand_less : Icons.expand_more),
-            onTap: () {
-              setState(() {
-                _showFilters = !_showFilters;
-              });
-            },
           ),
-          if (_showFilters) ...[
-            Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Column(
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: _selectedComunidad,
-                    decoration: InputDecoration(
-                      labelText: 'Filtrar por Comunidad',
-                      labelStyle: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
-                      border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD))),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD), width: 2)),
+        ),
+        AnimatedSwitcher(
+          duration: Duration(milliseconds: 300),
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          child: _showFilters
+              ? Card(
+                  key: ValueKey('filters'),
+                  margin: EdgeInsets.only(bottom: 16),
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
+                    child: Column(
+                      children: [
+                        // Comunidad Dropdown (same as your code)
+                        DropdownButtonFormField<String>(
+                          value: _selectedComunidad,
+                          decoration: InputDecoration(
+                            labelText: 'Filtrar por Comunidad',
+                            labelStyle: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
+                            border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD))),
+                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD), width: 2)),
+                          ),
+                          items: [
+                            DropdownMenuItem(value: null, child: Text("Todas", style: TextStyle(fontFamily: 'Montserrat'))),
+                            DropdownMenuItem(value: "La Nueva Jerusalén", child: Text("La Nueva Jerusalén", style: TextStyle(fontFamily: 'Montserrat'))),
+                            DropdownMenuItem(value: "La Honda", child: Text("La Honda", style: TextStyle(fontFamily: 'Montserrat'))),
+                            DropdownMenuItem(value: "Granizal", child: Text("Granizal", style: TextStyle(fontFamily: 'Montserrat'))),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedComunidad = value;
+                            });
+                          },
+                        ),
+                        SizedBox(height: 12),
+                        // Estado Dropdown (same as your code)
+                        DropdownButtonFormField<String>(
+                          value: _selectedEstado,
+                          decoration: InputDecoration(
+                            labelText: 'Filtrar por Estado',
+                            labelStyle: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
+                            border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD))),
+                            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD), width: 2)),
+                          ),
+                          items: [
+                            DropdownMenuItem(
+                              value: null,
+                              child: Text("Todos", style: TextStyle(fontFamily: 'Montserrat')),
+                            ),
+                            DropdownMenuItem(
+                              value: "caracterizado",
+                              child: Text(
+                                "Caracterizado",
+                                style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF954B97)),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: "encuestado",
+                              child: Text(
+                                "Encuestado",
+                                style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: "preasignado",
+                              child: Text(
+                                "Preasignado",
+                                style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFFFDC533)),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: "inactivo",
+                              child: Text(
+                                "Inactivo",
+                                style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFFE94362)),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: "asignado",
+                              child: Text(
+                                "Asignado",
+                                style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF2FAC66)),
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedEstado = value;
+                            });
+                          },
+                        ),
+                      ],
                     ),
-                    items: [
-                      DropdownMenuItem(value: null, child: Text("Todas", style: TextStyle(fontFamily: 'Montserrat'))),
-                      DropdownMenuItem(value: "La Nueva Jerusalén", child: Text("La Nueva Jerusalén", style: TextStyle(fontFamily: 'Montserrat'))),
-                      DropdownMenuItem(value: "La Honda", child: Text("La Honda", style: TextStyle(fontFamily: 'Montserrat'))),
-                      DropdownMenuItem(value: "Granizal", child: Text("Granizal", style: TextStyle(fontFamily: 'Montserrat'))),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedComunidad = value;
-                      });
-                    },
                   ),
-                  SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: _selectedEstado,
-                    decoration: InputDecoration(
-                      labelText: 'Filtrar por Estado',
-                      labelStyle: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
-                      border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD))),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF0092DD), width: 2)),
-                    ),
-                    items: [
-                      DropdownMenuItem(value: null, child: Text("Todos", style: TextStyle(fontFamily: 'Montserrat'))),
-                      DropdownMenuItem(value: "caracterizado", child: Text("Caracterizado", style: TextStyle(fontFamily: 'Montserrat'))),
-                      DropdownMenuItem(value: "encuestado", child: Text("Encuestado", style: TextStyle(fontFamily: 'Montserrat'))),
-                      DropdownMenuItem(value: "preasignado", child: Text("Preasignado", style: TextStyle(fontFamily: 'Montserrat'))),
-                      DropdownMenuItem(value: "inactivo", child: Text("Inactivo", style: TextStyle(fontFamily: 'Montserrat'))),
-                      DropdownMenuItem(value: "asignado", child: Text("Asignado", style: TextStyle(fontFamily: 'Montserrat'))),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedEstado = value;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
+                )
+              : SizedBox.shrink(key: ValueKey('empty')),
+        ),
+      ],
     );
   }
+
+
 
   Widget _buildHighlightedText(String fullText, String searchTerm, TextStyle style) {
     if (searchTerm.isEmpty) {
       return Text(fullText, style: style);
     }
-    
+
     String normalizedFull = DBHelper.normalizeString(fullText);
     String normalizedSearch = DBHelper.normalizeString(searchTerm);
 
@@ -559,15 +613,20 @@ class _QueryPageState extends State<QueryPage> {
     if (index == -1) {
       return Text(fullText, style: style);
     }
-    
+
     return RichText(
       text: TextSpan(
         style: style,
         children: [
-          if (index > 0) TextSpan(text: fullText.substring(0, index)),
+          if (index > 0)
+            TextSpan(text: fullText.substring(0, index)),
           TextSpan(
             text: fullText.substring(index, index + searchTerm.length),
-            style: style.copyWith(fontWeight: FontWeight.bold),
+            style: style.copyWith(
+              color: Colors.black, // darker for contrast
+              fontWeight: FontWeight.w800, // heavier than default bold
+              fontSize: style.fontSize != null ? style.fontSize! + 1 : null,
+            ),
           ),
           if (index + searchTerm.length < fullText.length)
             TextSpan(text: fullText.substring(index + searchTerm.length)),
@@ -575,6 +634,7 @@ class _QueryPageState extends State<QueryPage> {
       ),
     );
   }
+
 
   Widget _buildMultipleResultsList() {
     return Column(
@@ -867,17 +927,35 @@ class _QueryPageState extends State<QueryPage> {
                 onSubmitted: (_) => _search(),
               ),
               SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _search,
-                child: Text(
-                  'Buscar',
-                  style: TextStyle(fontFamily: 'Fredoka', fontWeight: FontWeight.w600),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF0092DD),
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      _showFilters ? Icons.filter_alt : Icons.filter_alt_outlined,
+                      color: _areFiltersActive() ? Color(0xFF0066AA) : Color(0xFF0092DD),
+                    ),
+                    tooltip: "Mostrar filtros",
+                    onPressed: () {
+                      setState(() {
+                        _showFilters = !_showFilters;
+                      });
+                    },
+                  ),
+                  SizedBox(width: 4), // small space between icon and button
+                  ElevatedButton(
+                    onPressed: _search,
+                    child: Text(
+                      'Buscar',
+                      style: TextStyle(fontFamily: 'Fredoka', fontWeight: FontWeight.w600),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF0092DD),
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ],
               ),
               SizedBox(height: 24),
               _buildResultTable(),
