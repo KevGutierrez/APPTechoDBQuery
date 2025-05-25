@@ -53,6 +53,11 @@ class _QueryPageState extends State<QueryPage> {
   String? _selectedComunidad;
   String? _selectedEstado;
   bool _showFilters = false;
+  List<String> _recentCedulaSearches = [];
+  List<String> _recentContactoSearches = [];
+  List<String> _recentNombreSearches = [];
+  bool _showSuggestions = false;
+  FocusNode _searchFocusNode = FocusNode();
 
 
   @override
@@ -60,6 +65,14 @@ class _QueryPageState extends State<QueryPage> {
     super.initState();
     _checkUnsyncedComments();
     _loadLastSyncTime();
+    _loadRecentSearches(); // Add this line
+    _searchFocusNode.addListener(_onFocusChange); // Add this line
+  }
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    super.dispose();
   }
 
   bool _areFiltersActive() {
@@ -88,6 +101,67 @@ class _QueryPageState extends State<QueryPage> {
     }
   }
 
+  void _onFocusChange() {
+    setState(() {
+      _showSuggestions = _searchFocusNode.hasFocus && _getRecentSearches().isNotEmpty;
+    });
+  }
+
+  Future<void> _loadRecentSearches() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _recentCedulaSearches = prefs.getStringList('recent_cedula') ?? [];
+      _recentContactoSearches = prefs.getStringList('recent_contacto') ?? [];
+      _recentNombreSearches = prefs.getStringList('recent_nombre') ?? [];
+    });
+  }
+
+  Future<void> _saveRecentSearch(String term) async {
+    if (term.trim().isEmpty) return;
+    
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    List<String> currentList = _getRecentSearches();
+    
+    // Remove if exists and add to beginning
+    currentList.remove(term);
+    currentList.insert(0, term);
+    
+    // Keep only last 5 searches
+    if (currentList.length > 5) {
+      currentList = currentList.take(5).toList();
+    }
+    
+    // Save based on current field
+    switch (_selectedField) {
+      case "CEDULA":
+        _recentCedulaSearches = currentList;
+        await prefs.setStringList('recent_cedula', currentList);
+        break;
+      case "CONTACTO 1":
+        _recentContactoSearches = currentList;
+        await prefs.setStringList('recent_contacto', currentList);
+        break;
+      case "NOMBRE COMPLETO":
+        _recentNombreSearches = currentList;
+        await prefs.setStringList('recent_nombre', currentList);
+        break;
+    }
+    setState(() {});
+  }
+
+  List<String> _getRecentSearches() {
+    switch (_selectedField) {
+      case "CEDULA":
+        return _recentCedulaSearches;
+      case "CONTACTO 1":
+        return _recentContactoSearches;
+      case "NOMBRE COMPLETO":
+        return _recentNombreSearches;
+      default:
+        return [];
+    }
+  }
+
   String _formatSyncTime(DateTime syncTime) {
     DateTime now = DateTime.now();
     Duration difference = now.difference(syncTime);
@@ -107,6 +181,11 @@ class _QueryPageState extends State<QueryPage> {
   Future<void> _search() async {
     final input = _controller.text.trim();
     if (input.isEmpty) return;
+
+    await _saveRecentSearch(input);
+    setState(() {
+      _showSuggestions = false;
+    });
 
     List<Map<String, dynamic>> results;
     if (_selectedField == "NOMBRE COMPLETO") {
@@ -636,7 +715,56 @@ class _QueryPageState extends State<QueryPage> {
     );
   }
 
-
+  Widget _buildFilterChips() {
+    List<Widget> chips = [];
+    
+    if (_selectedComunidad != null) {
+      chips.add(
+        Chip(
+          label: Text(
+            'Comunidad: $_selectedComunidad',
+            style: TextStyle(fontFamily: 'Montserrat', fontSize: 12),
+          ),
+          backgroundColor: Color(0xFF0092DD).withOpacity(0.1),
+          deleteIcon: Icon(Icons.close, size: 16),
+          onDeleted: () {
+            setState(() {
+              _selectedComunidad = null;
+            });
+          },
+        ),
+      );
+    }
+    
+    if (_selectedEstado != null) {
+      chips.add(
+        Chip(
+          label: Text(
+            'Estado: $_selectedEstado',
+            style: TextStyle(fontFamily: 'Montserrat', fontSize: 12),
+          ),
+          backgroundColor: _getEstadoColor(_selectedEstado!),
+          deleteIcon: Icon(Icons.close, size: 16),
+          onDeleted: () {
+            setState(() {
+              _selectedEstado = null;
+            });
+          },
+        ),
+      );
+    }
+    
+    if (chips.isEmpty) return SizedBox.shrink();
+    
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: chips,
+      ),
+    );
+  }
 
   Widget _buildHighlightedText(String fullText, String searchTerm, TextStyle style) {
     if (searchTerm.isEmpty) {
@@ -907,6 +1035,7 @@ class _QueryPageState extends State<QueryPage> {
               ),
               SizedBox(height: 16),
               _buildFilterSection(),
+              _buildFilterChips(),
               DropdownButtonFormField<String>(
                 value: _selectedField,
                 decoration: InputDecoration(
@@ -940,30 +1069,98 @@ class _QueryPageState extends State<QueryPage> {
                   });
                 },
               ),
-              SizedBox(height: 12),
-              TextField(
-                controller: _controller,
-                decoration: InputDecoration(
-                  labelText: _selectedField == "CEDULA" 
-                      ? 'Ingrese número de cédula'
-                      : _selectedField == "CONTACTO 1"
-                      ? 'Ingrese número de celular'
-                      : 'Ingrese nombre (búsqueda parcial)',
-                  labelStyle: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF0092DD)),
+              SizedBox(height: 16),
+              
+              // Replace the existing TextField with this:
+              Stack(
+                children: [
+                  TextField(
+                    controller: _controller,
+                    focusNode: _searchFocusNode,
+                    decoration: InputDecoration(
+                      labelText: _selectedField == "CEDULA" 
+                          ? 'Ingrese número de cédula'
+                          : _selectedField == "CONTACTO 1"
+                          ? 'Ingrese número de celular'
+                          : 'Ingrese nombre (búsqueda parcial)',
+                      labelStyle: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
+                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(color: Color(0xFF0092DD)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Color(0xFF0092DD), width: 2),
+                      ),
+                      suffixIcon: _controller.text.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.clear, color: Colors.grey),
+                              onPressed: () {
+                                setState(() {
+                                  _controller.clear();
+                                  _showSuggestions = false;
+                                });
+                              },
+                            )
+                          : null,
+                    ),
+                    style: TextStyle(fontFamily: 'Montserrat'),
+                    keyboardType: _selectedField == "NOMBRE COMPLETO" 
+                        ? TextInputType.text 
+                        : TextInputType.number,
+                    onSubmitted: (_) => _search(),
+                    onChanged: (value) {
+                      setState(() {}); // Rebuild to show/hide clear button
+                    },
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF0092DD), width: 2),
-                  ),
-                ),
-                style: TextStyle(fontFamily: 'Montserrat'),
-                keyboardType: _selectedField == "NOMBRE COMPLETO" 
-                    ? TextInputType.text 
-                    : TextInputType.number,
-                onSubmitted: (_) => _search(),
+                  
+                  // Suggestions dropdown
+                  if (_showSuggestions && _getRecentSearches().isNotEmpty)
+                    Positioned(
+                      top: 60,
+                      left: 0,
+                      right: 0,
+                      child: Material(
+                        elevation: 4,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          constraints: BoxConstraints(maxHeight: 200),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: _getRecentSearches().length,
+                            itemBuilder: (context, index) {
+                              final suggestion = _getRecentSearches()[index];
+                              return ListTile(
+                                dense: true,
+                                leading: Icon(Icons.history, size: 16, color: Colors.grey),
+                                title: Text(
+                                  suggestion,
+                                  style: TextStyle(
+                                    fontFamily: 'Montserrat',
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                onTap: () {
+                                  _controller.text = suggestion;
+                                  setState(() {
+                                    _showSuggestions = false;
+                                  });
+                                  _search();
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              SizedBox(height: 12),
+
+              SizedBox(height: 16),
               Row(
                 children: [
                   // Buscar button takes most of the space
@@ -999,7 +1196,7 @@ class _QueryPageState extends State<QueryPage> {
                 ],
               ),
 
-              SizedBox(height: 24),
+              SizedBox(height: 20),
               _buildResultTable(),
             ],
           ),
