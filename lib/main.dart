@@ -511,9 +511,9 @@ class _QueryPageState extends State<QueryPage> {
                           ),
                           items: [
                             DropdownMenuItem(value: null, child: Text("Todas", style: TextStyle(fontFamily: 'Montserrat'))),
-                            DropdownMenuItem(value: "La Nueva Jerusalén", child: Text("La Nueva Jerusalén", style: TextStyle(fontFamily: 'Montserrat'))),
-                            DropdownMenuItem(value: "La Honda", child: Text("La Honda", style: TextStyle(fontFamily: 'Montserrat'))),
                             DropdownMenuItem(value: "Granizal", child: Text("Granizal", style: TextStyle(fontFamily: 'Montserrat'))),
+                            DropdownMenuItem(value: "La Honda", child: Text("La Honda", style: TextStyle(fontFamily: 'Montserrat'))),
+                            DropdownMenuItem(value: "La Nueva Jerusalén", child: Text("La Nueva Jerusalén", style: TextStyle(fontFamily: 'Montserrat'))),
                           ],
                           onChanged: (value) {
                             setState(() {
@@ -538,37 +538,72 @@ class _QueryPageState extends State<QueryPage> {
                             ),
                             DropdownMenuItem(
                               value: "caracterizado",
-                              child: Text(
-                                "Caracterizado",
-                                style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF954B97)),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Color(0xFF954B97).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                child: Text(
+                                  "Caracterizado",
+                                  style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF954B97), fontSize: 16),
+                                ),
                               ),
                             ),
                             DropdownMenuItem(
                               value: "encuestado",
-                              child: Text(
-                                "Encuestado",
-                                style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Color(0xFF0092DD).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                child: Text(
+                                  "Encuestado",
+                                  style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD), fontSize: 16),
+                                ),
                               ),
                             ),
                             DropdownMenuItem(
                               value: "preasignado",
-                              child: Text(
-                                "Preasignado",
-                                style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFFFDC533)),
-                              ),
-                            ),
-                            DropdownMenuItem(
-                              value: "inactivo",
-                              child: Text(
-                                "Inactivo",
-                                style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFFE94362)),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFFDC533).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                child: Text(
+                                  "Preasignado",
+                                  style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFFFDC533), fontSize: 16),
+                                ),
                               ),
                             ),
                             DropdownMenuItem(
                               value: "asignado",
-                              child: Text(
-                                "Asignado",
-                                style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF2FAC66)),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Color(0xFF2FAC66).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                child: Text(
+                                  "Asignado",
+                                  style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF2FAC66), fontSize: 16),
+                                ),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: "inactivo",
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFE94362).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                child: Text(
+                                  "Inactivo",
+                                  style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFFE94362), fontSize: 16),
+                                ),
                               ),
                             ),
                           ],
@@ -577,7 +612,20 @@ class _QueryPageState extends State<QueryPage> {
                               _selectedEstado = value;
                             });
                           },
+
+                          // ✅ Fixes the selected item rendering
+                          selectedItemBuilder: (context) {
+                            return [
+                              Text("Todos", style: TextStyle(fontFamily: 'Montserrat')),
+                              Text("Caracterizado", style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF954B97))),
+                              Text("Encuestado", style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD))),
+                              Text("Preasignado", style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFFFDC533))),
+                              Text("Asignado", style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF2FAC66))),
+                              Text("Inactivo", style: TextStyle(fontFamily: 'Montserrat', color: Color(0xFFE94362))),
+                            ];
+                          },
                         ),
+
                       ],
                     ),
                   ),
