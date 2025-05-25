@@ -1072,7 +1072,8 @@ class _QueryPageState extends State<QueryPage> {
               SizedBox(height: 20),
               
               // Replace the existing TextField with this:
-              Stack(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   TextField(
                     controller: _controller,
