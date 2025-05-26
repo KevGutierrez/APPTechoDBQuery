@@ -1073,7 +1073,6 @@ class _QueryPageState extends State<QueryPage> {
               
               // Replace the existing TextField with this:
               Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   TextField(
                     controller: _controller,
@@ -1085,14 +1084,14 @@ class _QueryPageState extends State<QueryPage> {
                           ? 'Ingrese número de celular'
                           : 'Ingrese nombre (búsqueda parcial)',
                       labelStyle: TextStyle(fontFamily: 'Montserrat', color: Color(0xFF0092DD)),
-                      contentPadding: EdgeInsets.fromLTRB(12, 20, 12, 12), // Increase top padding
+                      contentPadding: EdgeInsets.fromLTRB(12, 20, 12, 12),
                       border: OutlineInputBorder(
                         borderSide: BorderSide(color: Color(0xFF0092DD)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: Color(0xFF0092DD), width: 2),
                       ),
-                      enabledBorder: OutlineInputBorder( // Add this
+                      enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: Color(0xFF0092DD)),
                       ),
                       suffixIcon: _controller.text.isNotEmpty
@@ -1113,52 +1112,51 @@ class _QueryPageState extends State<QueryPage> {
                         : TextInputType.number,
                     onSubmitted: (_) => _search(),
                     onChanged: (value) {
-                      setState(() {}); // Rebuild to show/hide clear button
+                      setState(() {});
                     },
                   ),
                   
-                  // Suggestions dropdown
+                  // Suggestions as a separate widget below the TextField
                   if (_showSuggestions && _getRecentSearches().isNotEmpty)
-                    Positioned(
-                      top: 60,
-                      left: 0,
-                      right: 0,
-                      child: Material(
-                        elevation: 4,
+                    Container(
+                      margin: EdgeInsets.only(top: 4),
+                      constraints: BoxConstraints(maxHeight: 200),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          constraints: BoxConstraints(maxHeight: 200),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: Colors.grey.shade300),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
                           ),
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: _getRecentSearches().length,
-                            itemBuilder: (context, index) {
-                              final suggestion = _getRecentSearches()[index];
-                              return ListTile(
-                                dense: true,
-                                leading: Icon(Icons.history, size: 16, color: Colors.grey),
-                                title: Text(
-                                  suggestion,
-                                  style: TextStyle(
-                                    fontFamily: 'Montserrat',
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                onTap: () {
-                                  _controller.text = suggestion;
-                                  setState(() {
-                                    _showSuggestions = false;
-                                  });
-                                  _search();
-                                },
-                              );
+                        ],
+                      ),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _getRecentSearches().length,
+                        itemBuilder: (context, index) {
+                          final suggestion = _getRecentSearches()[index];
+                          return ListTile(
+                            dense: true,
+                            leading: Icon(Icons.history, size: 16, color: Colors.grey),
+                            title: Text(
+                              suggestion,
+                              style: TextStyle(
+                                fontFamily: 'Montserrat',
+                                fontSize: 14,
+                              ),
+                            ),
+                            onTap: () {
+                              _controller.text = suggestion;
+                              setState(() {
+                                _showSuggestions = false;
+                              });
+                              _search();
                             },
-                          ),
-                        ),
+                          );
+                        },
                       ),
                     ),
                 ],
